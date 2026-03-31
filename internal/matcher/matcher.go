@@ -134,6 +134,43 @@ func matchFinding(f Finding) (plan.Remediation, bool) {
 		r.Template = "docker-build-push"
 		r.Description = "Add container signing, SBOM generation, and vulnerability scanning to build pipeline"
 
+	// --- Okta ---
+	case f.CheckID == "iam.okta_mfa_not_enforced":
+		r.ID = "okta-mfa"
+		r.Kind = "terraform"
+		r.Template = "okta/mfa_policy"
+		r.Description = "Enforce MFA for all Okta users with phishing-resistant factors"
+
+	case f.CheckID == "iam.okta_weak_password_policy":
+		r.ID = "okta-password"
+		r.Kind = "terraform"
+		r.Template = "okta/password_policy"
+		r.Description = "Enforce NIST 800-63B aligned password policy"
+
+	case f.CheckID == "iam.okta_no_session_timeout":
+		r.ID = "okta-session"
+		r.Kind = "terraform"
+		r.Template = "okta/session_policy"
+		r.Description = "Set session idle and lifetime timeouts"
+
+	case f.CheckID == "iam.okta_threat_insight_disabled":
+		r.ID = "okta-threat-insight"
+		r.Kind = "terraform"
+		r.Template = "okta/threat_insight"
+		r.Description = "Enable ThreatInsight in block mode"
+
+	case f.CheckID == "iam.okta_no_group_rules":
+		r.ID = "okta-groups"
+		r.Kind = "terraform"
+		r.Template = "okta/groups"
+		r.Description = "Create department-based groups with automatic membership rules"
+
+	case f.CheckID == "iam.okta_app_permissive_access":
+		r.ID = "okta-app-access"
+		r.Kind = "terraform"
+		r.Template = "okta/groups"
+		r.Description = "Replace Everyone group assignment with role-based groups"
+
 	default:
 		return r, false
 	}
@@ -147,6 +184,8 @@ func inferProvider(checkID string) string {
 		return "gcp"
 	case strings.Contains(checkID, "aws") || strings.Contains(checkID, "s3") || strings.Contains(checkID, "ec2") || strings.Contains(checkID, "eks"):
 		return "aws"
+	case strings.Contains(checkID, "okta"):
+		return "okta"
 	default:
 		return ""
 	}
