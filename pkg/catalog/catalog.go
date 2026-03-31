@@ -4,6 +4,8 @@
 // and metadata for AI intent mapping and Backstage template generation.
 package catalog
 
+import "github.com/stormbane/infra"
+
 // Entry is a scaffoldable infrastructure pattern.
 type Entry struct {
 	// ID is a unique identifier (e.g., "gcp-gke-cluster").
@@ -15,8 +17,12 @@ type Entry struct {
 	// Description explains what this pattern provisions.
 	Description string `json:"description"`
 
-	// Provider: "gcp", "aws", "okta", "github".
-	Provider string `json:"provider"`
+	// Provider links to an infra technology ID (e.g., infra.GCP, infra.AWS).
+	Provider infra.Technology `json:"provider"`
+
+	// ResourceType links to an infra cloud resource type (e.g., "gcp.gke_cluster").
+	// Used by Forecast to map Beacon findings to the correct remediation pattern.
+	ResourceType infra.ResourceType `json:"resource_type,omitempty"`
 
 	// Category groups entries: "compute", "storage", "database", "identity",
 	// "networking", "cicd", "security".
@@ -77,7 +83,7 @@ func All() []Entry {
 }
 
 // ByProvider returns entries filtered by cloud provider.
-func ByProvider(provider string) []Entry {
+func ByProvider(provider infra.Technology) []Entry {
 	var result []Entry
 	for _, e := range entries {
 		if e.Provider == provider {
@@ -85,6 +91,16 @@ func ByProvider(provider string) []Entry {
 		}
 	}
 	return result
+}
+
+// ByResourceType returns the catalog entry that remediates a given cloud resource type.
+func ByResourceType(rt infra.ResourceType) (Entry, bool) {
+	for _, e := range entries {
+		if e.ResourceType == rt {
+			return e, true
+		}
+	}
+	return Entry{}, false
 }
 
 // ByID returns a single entry by ID.
@@ -111,11 +127,12 @@ func ByCategory(category string) []Entry {
 var entries = []Entry{
 	// ── GCP ───────────────────────────────────────────────────────────────
 	{
-		ID:          "gcp-gke-cluster",
-		Name:        "GKE Kubernetes Cluster",
-		Description: "Production-grade GKE cluster with security hardening: private endpoint, workload identity, shielded nodes, network policy, and binary authorization.",
-		Provider:    "gcp",
-		Category:    "compute",
+		ID:           "gcp-gke-cluster",
+		Name:         "GKE Kubernetes Cluster",
+		Description:  "Production-grade GKE cluster with security hardening: private endpoint, workload identity, shielded nodes, network policy, and binary authorization.",
+		Provider:     infra.GCP,
+		ResourceType: "gcp.gke_cluster",
+		Category:     "compute",
 		Tags:        []string{"kubernetes", "k8s", "gke", "cluster", "containers", "gcp"},
 		Params: []Param{
 			{Name: "cluster_name", Label: "Cluster Name", Type: "string", Required: true},
@@ -138,11 +155,12 @@ var entries = []Entry{
 		},
 	},
 	{
-		ID:          "gcp-cloudsql",
-		Name:        "Cloud SQL Database",
-		Description: "Private Cloud SQL PostgreSQL instance with automated backups, SSL enforcement, and no public IP.",
-		Provider:    "gcp",
-		Category:    "database",
+		ID:           "gcp-cloudsql",
+		Name:         "Cloud SQL Database",
+		Description:  "Private Cloud SQL PostgreSQL instance with automated backups, SSL enforcement, and no public IP.",
+		Provider:     infra.GCP,
+		ResourceType: "gcp.cloudsql_instance",
+		Category:     "database",
 		Tags:        []string{"database", "postgres", "postgresql", "sql", "cloudsql", "gcp"},
 		Params: []Param{
 			{Name: "instance_name", Label: "Instance Name", Type: "string", Required: true},
@@ -163,11 +181,12 @@ var entries = []Entry{
 		},
 	},
 	{
-		ID:          "gcp-gcs-bucket",
-		Name:        "GCS Storage Bucket",
-		Description: "Private GCS bucket with uniform bucket-level access, versioning, and encryption.",
-		Provider:    "gcp",
-		Category:    "storage",
+		ID:           "gcp-gcs-bucket",
+		Name:         "GCS Storage Bucket",
+		Description:  "Private GCS bucket with uniform bucket-level access, versioning, and encryption.",
+		Provider:     infra.GCP,
+		ResourceType: "gcp.storage_bucket",
+		Category:     "storage",
 		Tags:        []string{"storage", "bucket", "gcs", "blob", "object", "gcp"},
 		Params: []Param{
 			{Name: "bucket_name", Label: "Bucket Name", Type: "string", Required: true},
@@ -185,11 +204,12 @@ var entries = []Entry{
 		},
 	},
 	{
-		ID:          "gcp-iam-baseline",
-		Name:        "GCP IAM Baseline",
-		Description: "Replace primitive IAM roles (Owner/Editor/Viewer) with least-privilege predefined roles.",
-		Provider:    "gcp",
-		Category:    "identity",
+		ID:           "gcp-iam-baseline",
+		Name:         "GCP IAM Baseline",
+		Description:  "Replace primitive IAM roles (Owner/Editor/Viewer) with least-privilege predefined roles.",
+		Provider:     infra.GCP,
+		ResourceType: "gcp.iam_binding",
+		Category:     "identity",
 		Tags:        []string{"iam", "identity", "roles", "permissions", "least-privilege", "gcp"},
 		Params: []Param{
 			{Name: "project_id", Label: "GCP Project ID", Type: "string", Required: true},
@@ -206,11 +226,12 @@ var entries = []Entry{
 
 	// ── AWS ───────────────────────────────────────────────────────────────
 	{
-		ID:          "aws-eks-cluster",
-		Name:        "EKS Kubernetes Cluster",
-		Description: "Production EKS cluster with private endpoint, managed node groups, envelope encryption, and IRSA.",
-		Provider:    "aws",
-		Category:    "compute",
+		ID:           "aws-eks-cluster",
+		Name:         "EKS Kubernetes Cluster",
+		Description:  "Production EKS cluster with private endpoint, managed node groups, envelope encryption, and IRSA.",
+		Provider:     infra.AWS,
+		ResourceType: "aws.eks_cluster",
+		Category:     "compute",
 		Tags:        []string{"kubernetes", "k8s", "eks", "cluster", "containers", "aws"},
 		Params: []Param{
 			{Name: "cluster_name", Label: "Cluster Name", Type: "string", Required: true},
@@ -232,11 +253,12 @@ var entries = []Entry{
 		},
 	},
 	{
-		ID:          "aws-s3-bucket",
-		Name:        "S3 Storage Bucket",
-		Description: "Private S3 bucket with public access block, versioning, encryption, and access logging.",
-		Provider:    "aws",
-		Category:    "storage",
+		ID:           "aws-s3-bucket",
+		Name:         "S3 Storage Bucket",
+		Description:  "Private S3 bucket with public access block, versioning, encryption, and access logging.",
+		Provider:     infra.AWS,
+		ResourceType: "aws.s3_bucket",
+		Category:     "storage",
 		Tags:        []string{"storage", "bucket", "s3", "blob", "object", "aws"},
 		Params: []Param{
 			{Name: "bucket_name", Label: "Bucket Name", Type: "string", Required: true},
@@ -254,11 +276,12 @@ var entries = []Entry{
 		},
 	},
 	{
-		ID:          "aws-ec2-security-group",
-		Name:        "EC2 Security Group",
-		Description: "Restrictive security group that blocks 0.0.0.0/0 ingress, allows only specified CIDR ranges.",
-		Provider:    "aws",
-		Category:    "networking",
+		ID:           "aws-ec2-security-group",
+		Name:         "EC2 Security Group",
+		Description:  "Restrictive security group that blocks 0.0.0.0/0 ingress, allows only specified CIDR ranges.",
+		Provider:     infra.AWS,
+		ResourceType: "aws.ec2_security_group",
+		Category:     "networking",
 		Tags:        []string{"ec2", "security-group", "firewall", "networking", "aws"},
 		Params: []Param{
 			{Name: "vpc_id", Label: "VPC ID", Type: "string", Required: true},
@@ -275,11 +298,12 @@ var entries = []Entry{
 		},
 	},
 	{
-		ID:          "aws-iam-mfa",
-		Name:        "AWS IAM MFA Policy",
-		Description: "Enforce MFA for all IAM users via an IAM policy condition.",
-		Provider:    "aws",
-		Category:    "identity",
+		ID:           "aws-iam-mfa",
+		Name:         "AWS IAM MFA Policy",
+		Description:  "Enforce MFA for all IAM users via an IAM policy condition.",
+		Provider:     infra.AWS,
+		ResourceType: "aws.iam_policy",
+		Category:     "identity",
 		Tags:        []string{"iam", "mfa", "identity", "authentication", "aws"},
 		Params: []Param{},
 		Templates: []TemplateRef{
@@ -296,7 +320,7 @@ var entries = []Entry{
 		ID:          "okta-org-baseline",
 		Name:        "Okta Organization Baseline",
 		Description: "Full Okta hardening: MFA policy, password policy, session timeouts, ThreatInsight, and department-based groups.",
-		Provider:    "okta",
+		Provider:    infra.Okta,
 		Category:    "identity",
 		Tags:        []string{"okta", "iam", "identity", "sso", "mfa", "password", "groups", "baseline"},
 		Params: []Param{
@@ -322,7 +346,7 @@ var entries = []Entry{
 		ID:          "okta-mfa",
 		Name:        "Okta MFA Policy",
 		Description: "Enforce phishing-resistant MFA for all Okta users.",
-		Provider:    "okta",
+		Provider:    infra.Okta,
 		Category:    "identity",
 		Tags:        []string{"okta", "mfa", "authentication", "phishing"},
 		Params:      []Param{},
@@ -340,7 +364,7 @@ var entries = []Entry{
 		ID:          "cicd-secure-docker",
 		Name:        "Secure Docker Build Pipeline",
 		Description: "GitHub Actions workflow for building, signing, and scanning container images with SBOM generation.",
-		Provider:    "github",
+		Provider:    "github-actions",
 		Category:    "cicd",
 		Tags:        []string{"docker", "container", "cicd", "pipeline", "sbom", "signing", "cosign", "trivy"},
 		Params: []Param{
@@ -363,7 +387,7 @@ var entries = []Entry{
 		ID:          "cicd-go-ci",
 		Name:        "Go CI Pipeline",
 		Description: "GitHub Actions workflow for Go projects with linting, testing, and security scanning.",
-		Provider:    "github",
+		Provider:    "github-actions",
 		Category:    "cicd",
 		Tags:        []string{"go", "golang", "ci", "cicd", "testing", "lint"},
 		Params:      []Param{},
@@ -381,7 +405,7 @@ var entries = []Entry{
 		ID:          "cicd-terraform-ci",
 		Name:        "Terraform CI Pipeline",
 		Description: "GitHub Actions workflow for Terraform with fmt, validate, plan, and security scanning.",
-		Provider:    "github",
+		Provider:    "github-actions",
 		Category:    "cicd",
 		Tags:        []string{"terraform", "ci", "cicd", "infrastructure", "iac"},
 		Params:      []Param{},
@@ -400,7 +424,7 @@ var entries = []Entry{
 		ID:          "cicd-beacon-scan",
 		Name:        "Beacon Scheduled Scan",
 		Description: "GitHub Actions workflow that runs Beacon scans on a schedule and opens issues for new findings.",
-		Provider:    "github",
+		Provider:    "github-actions",
 		Category:    "cicd",
 		Tags:        []string{"beacon", "scan", "security", "monitoring", "cicd", "scheduled"},
 		Params: []Param{

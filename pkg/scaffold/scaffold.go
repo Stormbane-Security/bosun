@@ -79,7 +79,7 @@ func Run(req Request) (*Result, error) {
 	// Build a plan from the catalog entry's templates.
 	p := &plan.Plan{
 		Version:  "1",
-		Provider: entry.Provider,
+		Provider: string(entry.Provider),
 		Vars:     make(map[string]string),
 	}
 
@@ -152,7 +152,7 @@ func MatchIntent(query string) []catalog.Entry {
 
 		// Match against provider.
 		for _, word := range words {
-			if strings.EqualFold(entry.Provider, word) {
+			if strings.EqualFold(string(entry.Provider), word) {
 				score += 2
 			}
 		}

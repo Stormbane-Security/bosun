@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stormbane-security/bosun/pkg/catalog"
+	"github.com/stormbane/infra"
 )
 
 func TestAll_NotEmpty(t *testing.T) {
@@ -14,19 +15,19 @@ func TestAll_NotEmpty(t *testing.T) {
 }
 
 func TestByProvider_GCP(t *testing.T) {
-	entries := catalog.ByProvider("gcp")
+	entries := catalog.ByProvider(infra.GCP)
 	if len(entries) == 0 {
 		t.Fatal("expected GCP entries")
 	}
 	for _, e := range entries {
-		if e.Provider != "gcp" {
+		if e.Provider != infra.GCP {
 			t.Errorf("expected provider 'gcp', got %q", e.Provider)
 		}
 	}
 }
 
 func TestByProvider_AWS(t *testing.T) {
-	entries := catalog.ByProvider("aws")
+	entries := catalog.ByProvider(infra.AWS)
 	if len(entries) == 0 {
 		t.Fatal("expected AWS entries")
 	}
@@ -94,5 +95,15 @@ func TestAll_RequiredFields(t *testing.T) {
 		if len(e.Tags) == 0 {
 			t.Errorf("entry %s has no tags", e.ID)
 		}
+	}
+}
+
+func TestByResourceType(t *testing.T) {
+	e, ok := catalog.ByResourceType("aws.s3_bucket")
+	if !ok {
+		t.Fatal("expected to find entry for aws.s3_bucket")
+	}
+	if e.ID != "aws-s3-bucket" {
+		t.Errorf("expected aws-s3-bucket, got %s", e.ID)
 	}
 }

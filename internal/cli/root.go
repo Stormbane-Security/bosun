@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/stormbane/infra"
 	"github.com/stormbane-security/bosun/pkg/catalog"
 	"github.com/stormbane-security/bosun/pkg/generator"
 	"github.com/stormbane-security/bosun/pkg/generator/backstage"
@@ -235,7 +236,7 @@ func runCatalog() error {
 
 	entries := catalog.All()
 	if provider != "" {
-		entries = catalog.ByProvider(provider)
+		entries = catalog.ByProvider(infra.Technology(provider))
 	}
 	if category != "" {
 		var filtered []catalog.Entry
@@ -253,11 +254,11 @@ func runCatalog() error {
 	}
 
 	fmt.Printf("Available infrastructure patterns (%d):\n\n", len(entries))
-	currentProvider := ""
+	currentProvider := infra.Technology("")
 	for _, e := range entries {
 		if e.Provider != currentProvider {
 			currentProvider = e.Provider
-			fmt.Printf("── %s ──\n", strings.ToUpper(currentProvider))
+			fmt.Printf("── %s ──\n", strings.ToUpper(string(currentProvider)))
 		}
 		fmt.Printf("  %-25s %s\n", e.ID, e.Name)
 		fmt.Printf("  %-25s %s\n", "", e.Description)
