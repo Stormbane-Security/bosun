@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"text/template"
 
-	"github.com/stormbane-security/bosun/internal/generator/terraform"
-	"github.com/stormbane-security/bosun/internal/generator/workflow"
-	"github.com/stormbane-security/bosun/internal/plan"
+	"github.com/stormbane-security/bosun/pkg/generator/terraform"
+	"github.com/stormbane-security/bosun/pkg/generator/workflow"
+	"github.com/stormbane-security/bosun/pkg/plan"
 )
 
 // Generate produces a map of file paths to their content, ready to be

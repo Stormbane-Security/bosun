@@ -3,7 +3,7 @@ package matcher_test
 import (
 	"testing"
 
-	"github.com/stormbane-security/bosun/internal/matcher"
+	"github.com/stormbane-security/bosun/pkg/matcher"
 )
 
 func TestMatch_GCPBucketPublic(t *testing.T) {

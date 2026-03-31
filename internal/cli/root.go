@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/stormbane-security/bosun/internal/generator"
-	"github.com/stormbane-security/bosun/internal/matcher"
-	"github.com/stormbane-security/bosun/internal/plan"
+	"github.com/stormbane-security/bosun/pkg/generator"
+	"github.com/stormbane-security/bosun/pkg/matcher"
+	"github.com/stormbane-security/bosun/pkg/plan"
 )
 
 // Execute runs the bosun CLI.

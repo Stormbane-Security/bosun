@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/stormbane-security/bosun/internal/cve"
-	"github.com/stormbane-security/bosun/internal/generator"
-	gh "github.com/stormbane-security/bosun/internal/github"
-	"github.com/stormbane-security/bosun/internal/matcher"
-	"github.com/stormbane-security/bosun/internal/patcher"
-	"github.com/stormbane-security/bosun/internal/plan"
+	"github.com/stormbane-security/bosun/pkg/generator"
+	gh "github.com/stormbane-security/bosun/pkg/github"
+	"github.com/stormbane-security/bosun/pkg/matcher"
+	"github.com/stormbane-security/bosun/pkg/patcher"
+	"github.com/stormbane-security/bosun/pkg/plan"
 	"github.com/stormbane-security/bosun/internal/tracer"
 	"github.com/stormbane-security/bosun/internal/verifier"
 )

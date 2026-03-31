@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/stormbane-security/bosun/internal/plan"
+	"github.com/stormbane-security/bosun/pkg/plan"
 )
 
 //go:embed templates/*

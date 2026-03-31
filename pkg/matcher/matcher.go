@@ -6,7 +6,7 @@ package matcher
 import (
 	"strings"
 
-	"github.com/stormbane-security/bosun/internal/plan"
+	"github.com/stormbane-security/bosun/pkg/plan"
 )
 
 // Finding is the subset of Beacon's finding.Finding that Bosun needs.
