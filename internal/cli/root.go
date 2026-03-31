@@ -21,6 +21,8 @@ func Execute(version string) error {
 		return runPlan()
 	case "generate":
 		return runGenerate()
+	case "remediate":
+		return runRemediate()
 	case "version":
 		fmt.Printf("bosun %s\n", version)
 		return nil
@@ -35,9 +37,17 @@ func printUsage(version string) error {
 	fmt.Printf(`bosun %s — security remediation code generator
 
 Usage:
-  bosun plan    --input <beacon-output.json>   Create a remediation plan from Beacon findings
-  bosun generate --plan <plan.json>            Generate Terraform + CI/CD from a plan
-  bosun version                                Print version
+  bosun plan       --input <beacon-output.json>   Create a remediation plan from Beacon findings
+  bosun generate   --plan <plan.json>              Generate Terraform + CI/CD from a plan
+  bosun remediate  --input <beacon-output.json>    Full-loop: match → generate → PR → verify
+  bosun version                                    Print version
+
+Remediate flags:
+  --input <file>       Beacon JSON output (required)
+  --org <github-org>   GitHub org to trace assets to repos
+  --repo <owner/repo>  Target repo for PR creation
+  --beacon-url <url>   Beacon API URL for verification rescans
+  --dry-run            Print generated files without creating PR
 
 Bosun reads Beacon scan output and generates:
   - Terraform modules to harden cloud infrastructure (AWS, GCP)
