@@ -107,6 +107,7 @@ jobs:
 
       - name: gosec
         id: gosec
+        shell: bash {0}
         run: |
           EXCLUDES="${{ inputs.gosec-excludes }}"
           ARGS=""
@@ -114,18 +115,17 @@ jobs:
             ARGS="-exclude=$EXCLUDES"
           fi
 
-          set +e
-          gosec $ARGS -fmt json -out gosec.json ./... 2>&1
-          EXIT=$?
-          set -e
+          gosec ${ARGS} -fmt json -out gosec.json ./... 2>&1 || true
 
           ISSUES=0
           if [ -f gosec.json ]; then
-            ISSUES=$(jq '.Issues | length' gosec.json 2>/dev/null || echo 0)
+            ISSUES=$(jq '.Issues | length' gosec.json 2>/dev/null || echo "0")
           fi
           echo "issues=${ISSUES}" >> "$GITHUB_OUTPUT"
 
-          if [ "$EXIT" -ne 0 ] && [ "$ISSUES" -gt 0 ]; then
+          if [ "${ISSUES}" -gt 0 ]; then
+            echo "::error::gosec found ${ISSUES} issues"
+            jq -r '.Issues[] | "\(.file):\(.line): \(.rule_id) - \(.details)"' gosec.json 2>/dev/null
             exit 1
           fi
 
