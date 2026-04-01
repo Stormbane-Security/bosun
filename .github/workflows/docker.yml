@@ -3,18 +3,45 @@ name: Docker Build & Push
 on:
   workflow_call:
     inputs:
+      # ── Registry ────────────────────────────────────────────────────────
       registry:
-        description: 'Container registry (e.g. ghcr.io, docker.io, us-docker.pkg.dev/project/repo)'
+        description: 'Registry type: ghcr, gar, ecr, dockerhub'
         type: string
         required: true
       image:
-        description: 'Image name (e.g. stormbane-security/beacon)'
+        description: 'Full image path (e.g. stormbane-security/beacon for GHCR, my-project/my-repo/beacon for GAR)'
         type: string
         required: true
       tags:
-        description: 'Comma-separated image tags (e.g. latest,v1.0.0). Defaults to git ref name.'
+        description: 'Comma-separated image tags. Defaults to git ref name.'
         type: string
         default: ""
+
+      # ── GCP Artifact Registry (OIDC) ────────────────────────────────────
+      gcp-workload-identity-provider:
+        description: 'GCP Workload Identity Provider resource name (required if registry=gar)'
+        type: string
+        default: ""
+      gcp-service-account:
+        description: 'GCP service account email (required if registry=gar)'
+        type: string
+        default: ""
+      gar-location:
+        description: 'GAR region (e.g. us-central1)'
+        type: string
+        default: us-central1
+
+      # ── AWS ECR (OIDC) ──────────────────────────────────────────────────
+      aws-role-arn:
+        description: 'AWS IAM role ARN for OIDC (required if registry=ecr)'
+        type: string
+        default: ""
+      aws-region:
+        description: 'AWS region for ECR'
+        type: string
+        default: us-east-1
+
+      # ── Build ───────────────────────────────────────────────────────────
       context:
         description: Docker build context path
         type: string
@@ -24,21 +51,33 @@ on:
         type: string
         default: Dockerfile
       build-args:
-        description: 'Newline-separated build args (e.g. VERSION=1.0.0)'
+        description: 'Newline-separated build args'
         type: string
         default: ""
       platforms:
         description: Comma-separated target platforms
         type: string
         default: linux/amd64,linux/arm64
+
+      # ── Security ────────────────────────────────────────────────────────
       trivy-enabled:
         description: Run Trivy vulnerability scan on built image
         type: boolean
         default: true
       trivy-severity:
-        description: Trivy severity levels to report
+        description: Trivy severity levels to fail on
         type: string
         default: HIGH,CRITICAL
+      trivy-exit-code:
+        description: 'Exit code when vulnerabilities found (0=warn, 1=fail)'
+        type: number
+        default: 0
+
+      # ── Workflow ────────────────────────────────────────────────────────
+      environment:
+        description: GitHub deployment environment
+        type: string
+        default: ""
       timeout-minutes:
         description: Total workflow timeout
         type: number
@@ -47,12 +86,13 @@ on:
         description: GitHub runner label
         type: string
         default: ubuntu-24.04
+
     secrets:
-      registry-username:
-        description: 'Registry username (for docker.io, private registries)'
+      dockerhub-username:
+        description: 'Docker Hub username (required if registry=dockerhub)'
         required: false
-      registry-password:
-        description: 'Registry password or token'
+      dockerhub-token:
+        description: 'Docker Hub access token (required if registry=dockerhub)'
         required: false
 
 jobs:
@@ -60,9 +100,11 @@ jobs:
     name: Build, Scan & Push
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
+    environment: ${{ inputs.environment != '' && inputs.environment || null }}
     permissions:
       contents: read
       packages: write
+      id-token: write
       security-events: write
     concurrency:
       group: docker-${{ github.workflow }}-${{ github.ref }}
@@ -70,28 +112,78 @@ jobs:
 
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@v2
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         if: runner.environment == 'github-hosted'
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      # ── Registry auth ───────────────────────────────────────────────────
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Authenticate to GCP (Workload Identity Federation)
+        if: inputs.registry == 'gar'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ inputs.gcp-workload-identity-provider }}
+          service_account: ${{ inputs.gcp-service-account }}
+          token_format: access_token
 
-      - name: Resolve tags
-        id: tags
+      - name: Log in to GCP Artifact Registry
+        if: inputs.registry == 'gar'
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ${{ inputs.gar-location }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Authenticate to AWS (OIDC)
+        if: inputs.registry == 'ecr'
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        with:
+          role-to-assume: ${{ inputs.aws-role-arn }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: Log in to AWS ECR
+        if: inputs.registry == 'ecr'
+        uses: aws-actions/amazon-ecr-login@183a1442edf41672e66566b7fc560e297a290896 # v2.1.1
+        id: ecr-login
+
+      - name: Log in to GHCR
+        if: inputs.registry == 'ghcr'
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: inputs.registry == 'dockerhub'
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          username: ${{ secrets.dockerhub-username }}
+          password: ${{ secrets.dockerhub-token }}
+
+      # ── Build ───────────────────────────────────────────────────────────
+
+      - name: Resolve registry prefix and tags
+        id: resolve
         env:
-          REGISTRY: ${{ inputs.registry }}
+          REGISTRY_TYPE: ${{ inputs.registry }}
           IMAGE: ${{ inputs.image }}
           INPUT_TAGS: ${{ inputs.tags }}
           REF_NAME: ${{ github.ref_name }}
+          GAR_LOCATION: ${{ inputs.gar-location }}
         run: |
-          FULL="${REGISTRY}/${IMAGE}"
+          case "$REGISTRY_TYPE" in
+            ghcr)      PREFIX="ghcr.io" ;;
+            gar)       PREFIX="${GAR_LOCATION}-docker.pkg.dev" ;;
+            ecr)       PREFIX="${{ steps.ecr-login.outputs.registry || '' }}" ;;
+            dockerhub) PREFIX="docker.io" ;;
+            *)         echo "Unknown registry: $REGISTRY_TYPE" && exit 1 ;;
+          esac
+
+          FULL="${PREFIX}/${IMAGE}"
 
           if [ -n "$INPUT_TAGS" ]; then
             TAGS=""
@@ -105,42 +197,64 @@ jobs:
 
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
           echo "full_image=${FULL}" >> "$GITHUB_OUTPUT"
-          echo "Resolved tags: ${TAGS}"
+          echo "primary_tag=${FULL}:${INPUT_TAGS%%,*}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: ${TAGS}"
 
-      - name: Log in to registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ inputs.registry }}
-          username: ${{ secrets.registry-username || github.actor }}
-          password: ${{ secrets.registry-password || secrets.GITHUB_TOKEN }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: ${{ inputs.context }}
           file: ${{ inputs.dockerfile }}
           push: true
           platforms: ${{ inputs.platforms }}
-          tags: ${{ steps.tags.outputs.tags }}
+          tags: ${{ steps.resolve.outputs.tags }}
           build-args: ${{ inputs.build-args }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Run Trivy vulnerability scan
+      # ── Scan ────────────────────────────────────────────────────────────
+
+      - name: Trivy vulnerability scan
         if: inputs.trivy-enabled
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
         with:
-          image-ref: ${{ steps.tags.outputs.full_image }}:${{ github.ref_name }}
+          image-ref: ${{ steps.resolve.outputs.primary_tag }}
           format: table
-          exit-code: 0
+          exit-code: ${{ inputs.trivy-exit-code }}
           severity: ${{ inputs.trivy-severity }}
           output: trivy-results.txt
+
+      - name: Trivy SARIF report
+        if: inputs.trivy-enabled && always()
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          image-ref: ${{ steps.resolve.outputs.primary_tag }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: ${{ inputs.trivy-severity }}
+
+      - name: Upload Trivy SARIF
+        if: inputs.trivy-enabled && always()
+        uses: github/codeql-action/upload-sarif@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3.35.1
+        continue-on-error: true
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-container
+
+      # ── Summary ─────────────────────────────────────────────────────────
 
       - name: Summary
         if: always()
         env:
-          TAGS: ${{ steps.tags.outputs.tags }}
+          TAGS: ${{ steps.resolve.outputs.tags }}
           PLATFORMS: ${{ inputs.platforms }}
+          REGISTRY_TYPE: ${{ inputs.registry }}
           TRIVY_ENABLED: ${{ inputs.trivy-enabled }}
         run: |
           {
@@ -148,17 +262,33 @@ jobs:
             echo ""
             echo "| | |"
             echo "|---|---|"
+            echo "| **Registry** | ${REGISTRY_TYPE} |"
             echo "| **Platforms** | \`${PLATFORMS}\` |"
+            echo "| **Auth** | OIDC / keyless |"
 
             for TAG in $(echo "$TAGS" | tr ',' '\n'); do
               echo "| **Image** | \`${TAG}\` |"
             done
 
             if [ "$TRIVY_ENABLED" = "true" ] && [ -f trivy-results.txt ]; then
+              VULNS=$(wc -l < trivy-results.txt | tr -d ' ')
               echo ""
-              echo "### Trivy Scan"
-              echo '```'
-              cat trivy-results.txt
-              echo '```'
+              echo "### Trivy Vulnerability Scan"
+              echo ""
+              if [ "$VULNS" -gt 5 ]; then
+                echo "<details><summary>Scan results (${VULNS} lines)</summary>"
+                echo ""
+                echo '```'
+                cat trivy-results.txt
+                echo '```'
+                echo "</details>"
+              else
+                echo '```'
+                cat trivy-results.txt
+                echo '```'
+              fi
+            elif [ "$TRIVY_ENABLED" = "true" ]; then
+              echo ""
+              echo "### Trivy: :white_check_mark: No vulnerabilities found"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
