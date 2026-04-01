@@ -22,7 +22,7 @@ on:
       golangci-lint-version:
         description: golangci-lint version
         type: string
-        default: v2.1
+        default: v2.11
       runs-on:
         description: GitHub runner label
         type: string
