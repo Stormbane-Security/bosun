@@ -4,7 +4,7 @@
 // and metadata for AI intent mapping and Backstage template generation.
 package catalog
 
-import "github.com/stormbane/infra"
+import "github.com/stormbane-security/infra"
 
 // Entry is a scaffoldable infrastructure pattern.
 type Entry struct {

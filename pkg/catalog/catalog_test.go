@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stormbane-security/bosun/pkg/catalog"
-	"github.com/stormbane/infra"
+	"github.com/stormbane-security/infra"
 )
 
 func TestAll_NotEmpty(t *testing.T) {

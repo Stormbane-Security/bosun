@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/stormbane/infra"
+	"github.com/stormbane-security/infra"
 	"github.com/stormbane-security/bosun/pkg/catalog"
 	"github.com/stormbane-security/bosun/pkg/generator"
 	"github.com/stormbane-security/bosun/pkg/generator/backstage"
