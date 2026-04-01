@@ -5,7 +5,7 @@ on:
     inputs:
       # ── Registry ────────────────────────────────────────────────────────
       registry:
-        description: 'Registry type: ghcr, gar, ecr, dockerhub'
+        description: 'Registry type: ghcr, gar, ecr'
         type: string
         required: true
       image:
@@ -87,14 +87,6 @@ on:
         type: string
         default: ubuntu-24.04
 
-    secrets:
-      dockerhub-username:
-        description: 'Docker Hub username (required if registry=dockerhub)'
-        required: false
-      dockerhub-token:
-        description: 'Docker Hub access token (required if registry=dockerhub)'
-        required: false
-
 jobs:
   docker:
     name: Build, Scan & Push
@@ -158,13 +150,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log in to Docker Hub
-        if: inputs.registry == 'dockerhub'
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
-        with:
-          username: ${{ secrets.dockerhub-username }}
-          password: ${{ secrets.dockerhub-token }}
-
       # ── Build ───────────────────────────────────────────────────────────
 
       - name: Resolve registry prefix and tags
@@ -180,8 +165,7 @@ jobs:
             ghcr)      PREFIX="ghcr.io" ;;
             gar)       PREFIX="${GAR_LOCATION}-docker.pkg.dev" ;;
             ecr)       PREFIX="${{ steps.ecr-login.outputs.registry || '' }}" ;;
-            dockerhub) PREFIX="docker.io" ;;
-            *)         echo "Unknown registry: $REGISTRY_TYPE" && exit 1 ;;
+            *)         echo "Unknown registry: $REGISTRY_TYPE (supported: ghcr, gar, ecr)" && exit 1 ;;
           esac
 
           FULL="${PREFIX}/${IMAGE}"
