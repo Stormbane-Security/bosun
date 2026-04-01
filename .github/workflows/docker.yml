@@ -75,7 +75,11 @@ on:
 
       # ── Workflow ────────────────────────────────────────────────────────
       environment:
-        description: GitHub deployment environment
+        description: GitHub deployment environment name
+        type: string
+        default: ""
+      environment-url:
+        description: GitHub deployment environment URL (shown on deployments page)
         type: string
         default: ""
       timeout-minutes:
@@ -92,7 +96,9 @@ jobs:
     name: Build, Scan & Push
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
-    environment: ${{ inputs.environment != '' && inputs.environment || null }}
+    environment:
+      name: ${{ inputs.environment || null }}
+      url: ${{ inputs.environment-url || null }}
     permissions:
       contents: read
       packages: write

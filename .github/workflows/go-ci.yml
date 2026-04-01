@@ -23,6 +23,14 @@ on:
         description: golangci-lint version
         type: string
         default: v2.11
+      environment:
+        description: GitHub deployment environment name
+        type: string
+        default: ""
+      environment-url:
+        description: GitHub deployment environment URL
+        type: string
+        default: ""
       runs-on:
         description: GitHub runner label
         type: string
@@ -36,6 +44,9 @@ jobs:
     name: Go CI
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
+    environment:
+      name: ${{ inputs.environment || null }}
+      url: ${{ inputs.environment-url || null }}
     concurrency:
       group: go-ci-${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: true

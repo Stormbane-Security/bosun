@@ -2,11 +2,27 @@ name: Release
 
 on:
   workflow_call:
+    inputs:
+      environment:
+        description: GitHub deployment environment name
+        type: string
+        default: ""
+      environment-url:
+        description: GitHub deployment environment URL
+        type: string
+        default: ""
+      runs-on:
+        description: GitHub runner label
+        type: string
+        default: ubuntu-24.04
 
 jobs:
   release:
     name: Tag & Release
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runs-on }}
+    environment:
+      name: ${{ inputs.environment || null }}
+      url: ${{ inputs.environment-url || null }}
     permissions:
       contents: write
     concurrency:
