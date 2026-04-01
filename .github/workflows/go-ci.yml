@@ -80,12 +80,11 @@ jobs:
         id: vulncheck
         run: |
           set +e
-          OUTPUT=$(govulncheck ./... 2>&1)
-          EXIT=$?
-          echo "$OUTPUT"
+          govulncheck ./... 2>&1 | tee /tmp/govulncheck.out
+          EXIT=${PIPESTATUS[0]}
           set -e
 
-          VULNS=$(echo "$OUTPUT" | grep -c 'Vulnerability #' || echo 0)
+          VULNS=$(grep -c 'Vulnerability #' /tmp/govulncheck.out || true)
           echo "count=${VULNS}" >> "$GITHUB_OUTPUT"
 
           if [ "$EXIT" -ne 0 ]; then
