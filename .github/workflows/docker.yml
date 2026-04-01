@@ -122,6 +122,7 @@ jobs:
       # ── Registry auth ───────────────────────────────────────────────────
 
       - name: Authenticate to GCP (Workload Identity Federation)
+        id: auth
         if: inputs.registry == 'gar'
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
