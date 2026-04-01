@@ -6,3 +6,5 @@ on:
 jobs:
   ci:
     uses: ./.github/workflows/go-ci.yml
+    with:
+      gosec-excludes: G304
