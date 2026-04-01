@@ -62,7 +62,7 @@ func (c *Client) CreatePR(owner, repo, title, body, head, base string) (string, 
 	if err != nil {
 		return "", fmt.Errorf("creating PR: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		respBody, _ := io.ReadAll(resp.Body)
