@@ -12,7 +12,7 @@ import (
 
 func TestTrace_GKECluster(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"items": []map[string]any{
 				{
 					"name": "deploy.yml",
@@ -53,7 +53,7 @@ func TestTrace_GKECluster(t *testing.T) {
 
 func TestTrace_NoResults(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"items": []any{}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []any{}})
 	}))
 	defer srv.Close()
 
@@ -75,7 +75,7 @@ func TestTrace_NoResults(t *testing.T) {
 
 func TestTrace_ContextCancelled(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"items": []any{}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []any{}})
 	}))
 	defer srv.Close()
 
@@ -103,7 +103,7 @@ func TestTrace_Deduplication(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 		// Return the same result from multiple queries.
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"items": []map[string]any{
 				{
 					"name": "main.tf",

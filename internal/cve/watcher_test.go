@@ -12,9 +12,9 @@ import (
 
 func TestGenerateUpgrades_WithCVEInEvidence(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/advisories":
-			json.NewEncoder(w).Encode([]map[string]any{
+		switch r.URL.Path {
+		case "/advisories":
+			_ = json.NewEncoder(w).Encode([]map[string]any{
 				{
 					"ghsa_id":  "GHSA-1234",
 					"cve_id":   "CVE-2024-1234",
@@ -34,8 +34,8 @@ func TestGenerateUpgrades_WithCVEInEvidence(t *testing.T) {
 					},
 				},
 			})
-		case r.URL.Path == "/repos/myorg/myapp/contents/go.mod":
-			w.Write([]byte("module myapp\n\ngo 1.21\n\nrequire github.com/example/pkg v1.4.0\n"))
+		case "/repos/myorg/myapp/contents/go.mod":
+			_, _ = w.Write([]byte("module myapp\n\ngo 1.21\n\nrequire github.com/example/pkg v1.4.0\n"))
 		default:
 			http.NotFound(w, r)
 		}
@@ -102,9 +102,9 @@ func TestGenerateUpgrades_NoCVE(t *testing.T) {
 
 func TestGenerateUpgrades_CVEInTitle(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/advisories":
-			json.NewEncoder(w).Encode([]map[string]any{
+		switch r.URL.Path {
+		case "/advisories":
+			_ = json.NewEncoder(w).Encode([]map[string]any{
 				{
 					"cve_id":   "CVE-2024-5678",
 					"summary":  "XSS in template lib",
@@ -122,8 +122,8 @@ func TestGenerateUpgrades_CVEInTitle(t *testing.T) {
 					},
 				},
 			})
-		case r.URL.Path == "/repos/myorg/frontend/contents/package.json":
-			w.Write([]byte(`{"dependencies":{"template-lib":"^1.9.0"}}`))
+		case "/repos/myorg/frontend/contents/package.json":
+			_, _ = w.Write([]byte(`{"dependencies":{"template-lib":"^1.9.0"}}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -158,7 +158,7 @@ func TestGenerateUpgrades_CVEInTitle(t *testing.T) {
 
 func TestGenerateUpgrades_NoRepoLink(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode([]map[string]any{
+		_ = json.NewEncoder(w).Encode([]map[string]any{
 			{
 				"cve_id":   "CVE-2024-9999",
 				"severity": "medium",

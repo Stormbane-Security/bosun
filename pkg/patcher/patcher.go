@@ -17,11 +17,11 @@ func Apply(targetDir string, files map[string]string) ([]string, error) {
 		fullPath := filepath.Join(targetDir, relPath)
 
 		dir := filepath.Dir(fullPath)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return written, fmt.Errorf("creating directory %s: %w", dir, err)
 		}
 
-		if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(fullPath, []byte(content), 0o600); err != nil {
 			return written, fmt.Errorf("writing %s: %w", fullPath, err)
 		}
 

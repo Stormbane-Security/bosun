@@ -33,33 +33,33 @@ func GenerateAll() map[string]string {
 func GenerateTemplate(entry catalog.Entry) string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf(`apiVersion: scaffolder.backstage.io/v1beta3
+	fmt.Fprintf(&b, `apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
   name: %s
   title: "%s"
   description: "%s"
   tags:
-`, entry.ID, entry.Name, escapeYAML(entry.Description)))
+`, entry.ID, entry.Name, escapeYAML(entry.Description))
 
 	for _, tag := range entry.Tags {
-		b.WriteString(fmt.Sprintf("    - %s\n", tag))
+		fmt.Fprintf(&b, "    - %s\n", tag)
 	}
 
-	b.WriteString(fmt.Sprintf(`  annotations:
+	fmt.Fprintf(&b, `  annotations:
     bosun/provider: "%s"
     bosun/category: "%s"
 spec:
   type: infrastructure
   owner: platform-team
   lifecycle: production
-`, entry.Provider, entry.Category))
+`, entry.Provider, entry.Category)
 
 	// Security notes as extended description.
 	if len(entry.SecurityNotes) > 0 {
 		b.WriteString("  # Security hardening applied by Bosun:\n")
 		for _, note := range entry.SecurityNotes {
-			b.WriteString(fmt.Sprintf("  # - %s\n", note))
+			fmt.Fprintf(&b, "  # - %s\n", note)
 		}
 	}
 
@@ -69,15 +69,15 @@ spec:
 	b.WriteString("      required:\n")
 	for _, p := range entry.Params {
 		if p.Required {
-			b.WriteString(fmt.Sprintf("        - %s\n", p.Name))
+			fmt.Fprintf(&b, "        - %s\n", p.Name)
 		}
 	}
 	b.WriteString("      properties:\n")
 	for _, p := range entry.Params {
-		b.WriteString(fmt.Sprintf("        %s:\n", p.Name))
-		b.WriteString(fmt.Sprintf("          title: \"%s\"\n", p.Label))
+		fmt.Fprintf(&b, "        %s:\n", p.Name)
+		fmt.Fprintf(&b, "          title: \"%s\"\n", p.Label)
 		if p.Description != "" {
-			b.WriteString(fmt.Sprintf("          description: \"%s\"\n", escapeYAML(p.Description)))
+			fmt.Fprintf(&b, "          description: \"%s\"\n", escapeYAML(p.Description))
 		}
 		switch p.Type {
 		case "number":
@@ -88,13 +88,13 @@ spec:
 			b.WriteString("          type: string\n")
 			b.WriteString("          enum:\n")
 			for _, v := range p.Enum {
-				b.WriteString(fmt.Sprintf("            - %s\n", v))
+				fmt.Fprintf(&b, "            - %s\n", v)
 			}
 		default:
 			b.WriteString("          type: string\n")
 		}
 		if p.Default != "" {
-			b.WriteString(fmt.Sprintf("          default: \"%s\"\n", p.Default))
+			fmt.Fprintf(&b, "          default: \"%s\"\n", p.Default)
 		}
 	}
 
@@ -107,7 +107,7 @@ spec:
         catalogId: ` + entry.ID + "\n")
 	b.WriteString("        params:\n")
 	for _, p := range entry.Params {
-		b.WriteString(fmt.Sprintf("          %s: ${{ parameters.%s }}\n", p.Name, p.Name))
+		fmt.Fprintf(&b, "          %s: ${{ parameters.%s }}\n", p.Name, p.Name)
 	}
 
 	b.WriteString(`    - id: publish
@@ -125,7 +125,7 @@ spec:
           ### Security Hardening
 `)
 	for _, note := range entry.SecurityNotes {
-		b.WriteString(fmt.Sprintf("          - %s\n", note))
+		fmt.Fprintf(&b, "          - %s\n", note)
 	}
 
 	b.WriteString(`
@@ -158,7 +158,7 @@ spec:
   targets:
 `)
 	for _, e := range entries {
-		b.WriteString(fmt.Sprintf("    - ./templates/%s/template.yaml\n", e.ID))
+		fmt.Fprintf(&b, "    - ./templates/%s/template.yaml\n", e.ID)
 	}
 
 	return b.String()

@@ -150,7 +150,7 @@ func (v *Verifier) TriggerRescan(ctx context.Context, prURL string) (*Verificati
 		ver.Notes = fmt.Sprintf("Beacon rescan failed: %v", err)
 		return ver, nil
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		body, _ := io.ReadAll(resp.Body)
@@ -223,12 +223,14 @@ func (v *Verifier) isPRMerged(ctx context.Context, owner, repo, prNum string) (b
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var pr struct {
 		Merged bool `json:"merged"`
 	}
-	json.NewDecoder(resp.Body).Decode(&pr)
+	if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+		return false, fmt.Errorf("decoding PR response: %w", err)
+	}
 	return pr.Merged, nil
 }
 
@@ -246,12 +248,14 @@ func (v *Verifier) isWorkflowSuccess(ctx context.Context, owner, repo, prNum str
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var pr struct {
 		MergeCommitSHA string `json:"merge_commit_sha"`
 	}
-	json.NewDecoder(resp.Body).Decode(&pr)
+	if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+		return false, fmt.Errorf("decoding PR response: %w", err)
+	}
 
 	if pr.MergeCommitSHA == "" {
 		return false, nil
@@ -270,12 +274,14 @@ func (v *Verifier) isWorkflowSuccess(ctx context.Context, owner, repo, prNum str
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var status struct {
 		State string `json:"state"`
 	}
-	json.NewDecoder(resp.Body).Decode(&status)
+	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+		return false, fmt.Errorf("decoding status response: %w", err)
+	}
 
 	return status.State == "success", nil
 }

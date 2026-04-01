@@ -155,7 +155,7 @@ func runRemediate() error {
 	if err != nil {
 		return fmt.Errorf("creating temp dir: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	written, err := patcher.Apply(tmpDir, files)
 	if err != nil {

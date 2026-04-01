@@ -215,7 +215,7 @@ func (w *Watcher) lookupAdvisory(ctx context.Context, cveID string) (*Advisory, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -307,7 +307,7 @@ func (w *Watcher) getFileContent(ctx context.Context, repo, path string) (string
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("get file %d", resp.StatusCode)

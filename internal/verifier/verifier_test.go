@@ -30,7 +30,7 @@ func TestTrack_SetsPending(t *testing.T) {
 
 func TestCheckDeployment_PRNotMerged(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"merged": false})
+		_ = json.NewEncoder(w).Encode(map[string]any{"merged": false})
 	}))
 	defer srv.Close()
 
@@ -62,13 +62,13 @@ func TestCheckDeployment_MergedAndWorkflowSuccess(t *testing.T) {
 		switch {
 		case call <= 2:
 			// PR endpoint (called twice: isPRMerged and isWorkflowSuccess).
-			json.NewEncoder(w).Encode(map[string]any{
+			_ = json.NewEncoder(w).Encode(map[string]any{
 				"merged":           true,
 				"merge_commit_sha": "abc123",
 			})
 		default:
 			// Commit status endpoint.
-			json.NewEncoder(w).Encode(map[string]any{"state": "success"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "success"})
 		}
 	}))
 	defer srv.Close()
@@ -120,7 +120,7 @@ func TestTriggerRescan_NotDeployed(t *testing.T) {
 func TestTriggerRescan_FindingResolved(t *testing.T) {
 	beaconSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Return empty findings — issue is resolved.
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"findings": []any{},
 		})
 	}))
