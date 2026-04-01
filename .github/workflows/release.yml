@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  workflow_call:
+
+jobs:
+  release:
+    name: Tag & Release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        if: runner.environment == 'github-hosted'
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version bump
+        id: bump
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          TITLE="${PR_TITLE}"
+          echo "PR title: $TITLE"
+
+          if echo "$TITLE" | grep -qiE '^\s*\w+(\([^)]+\))?!:'; then
+            BUMP=major
+          elif echo "$TITLE" | grep -qiE '^\s*feat(\([^)]+\))?:'; then
+            BUMP=minor
+          else
+            BUMP=patch
+          fi
+
+          echo "bump=${BUMP}" >> "$GITHUB_OUTPUT"
+          echo "Determined bump: ${BUMP}"
+
+      - name: Calculate next version
+        id: version
+        run: |
+          LATEST=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          LATEST="${LATEST:-v0.0.0}"
+          echo "Latest tag: $LATEST"
+
+          MAJOR=$(echo "$LATEST" | cut -d. -f1 | tr -d 'v')
+          MINOR=$(echo "$LATEST" | cut -d. -f2)
+          PATCH=$(echo "$LATEST" | cut -d. -f3)
+
+          case "${{ steps.bump.outputs.bump }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEXT="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "Next version: $NEXT"
+          echo "tag=${NEXT}" >> "$GITHUB_OUTPUT"
+          echo "previous=${LATEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "release: ${TAG}"
+          git push origin "${TAG}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          {
+            echo "## What's Changed"
+            echo ""
+            echo "### [#${PR_NUMBER}](${PR_URL}) ${PR_TITLE}"
+            echo ""
+            if [ -n "${PR_BODY}" ]; then
+              echo "${PR_BODY}"
+              echo ""
+            fi
+            echo "---"
+            echo "**Full diff:** https://github.com/${{ github.repository }}/compare/${PREVIOUS}...${TAG}"
+          } > changelog.md
+
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --notes-file changelog.md
+
+      - name: Summary
+        if: always()
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+          BUMP: ${{ steps.bump.outputs.bump }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          {
+            echo "## Release Summary"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Version** | \`${TAG}\` |"
+            echo "| **Previous** | \`${PREVIOUS}\` |"
+            echo "| **Bump** | ${BUMP} |"
+            echo "| **Trigger** | ${PR_TITLE} |"
+          } >> "$GITHUB_STEP_SUMMARY"

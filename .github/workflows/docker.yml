@@ -1,0 +1,164 @@
+name: Docker Build & Push
+
+on:
+  workflow_call:
+    inputs:
+      registry:
+        description: 'Container registry (e.g. ghcr.io, docker.io, us-docker.pkg.dev/project/repo)'
+        type: string
+        required: true
+      image:
+        description: 'Image name (e.g. stormbane-security/beacon)'
+        type: string
+        required: true
+      tags:
+        description: 'Comma-separated image tags (e.g. latest,v1.0.0). Defaults to git ref name.'
+        type: string
+        default: ""
+      context:
+        description: Docker build context path
+        type: string
+        default: "."
+      dockerfile:
+        description: Path to Dockerfile
+        type: string
+        default: Dockerfile
+      build-args:
+        description: 'Newline-separated build args (e.g. VERSION=1.0.0)'
+        type: string
+        default: ""
+      platforms:
+        description: Comma-separated target platforms
+        type: string
+        default: linux/amd64,linux/arm64
+      trivy-enabled:
+        description: Run Trivy vulnerability scan on built image
+        type: boolean
+        default: true
+      trivy-severity:
+        description: Trivy severity levels to report
+        type: string
+        default: HIGH,CRITICAL
+      timeout-minutes:
+        description: Total workflow timeout
+        type: number
+        default: 30
+      runs-on:
+        description: GitHub runner label
+        type: string
+        default: ubuntu-24.04
+    secrets:
+      registry-username:
+        description: 'Registry username (for docker.io, private registries)'
+        required: false
+      registry-password:
+        description: 'Registry password or token'
+        required: false
+
+jobs:
+  docker:
+    name: Build, Scan & Push
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    concurrency:
+      group: docker-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        if: runner.environment == 'github-hosted'
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve tags
+        id: tags
+        env:
+          REGISTRY: ${{ inputs.registry }}
+          IMAGE: ${{ inputs.image }}
+          INPUT_TAGS: ${{ inputs.tags }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          FULL="${REGISTRY}/${IMAGE}"
+
+          if [ -n "$INPUT_TAGS" ]; then
+            TAGS=""
+            for TAG in $(echo "$INPUT_TAGS" | tr ',' ' '); do
+              TAGS="${TAGS}${FULL}:${TAG},"
+            done
+            TAGS="${TAGS%,}"
+          else
+            TAGS="${FULL}:${REF_NAME}"
+          fi
+
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "full_image=${FULL}" >> "$GITHUB_OUTPUT"
+          echo "Resolved tags: ${TAGS}"
+
+      - name: Log in to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ secrets.registry-username || github.actor }}
+          password: ${{ secrets.registry-password || secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: true
+          platforms: ${{ inputs.platforms }}
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: ${{ inputs.build-args }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scan
+        if: inputs.trivy-enabled
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.tags.outputs.full_image }}:${{ github.ref_name }}
+          format: table
+          exit-code: 0
+          severity: ${{ inputs.trivy-severity }}
+          output: trivy-results.txt
+
+      - name: Summary
+        if: always()
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+          PLATFORMS: ${{ inputs.platforms }}
+          TRIVY_ENABLED: ${{ inputs.trivy-enabled }}
+        run: |
+          {
+            echo "## Docker Build & Push"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Platforms** | \`${PLATFORMS}\` |"
+
+            for TAG in $(echo "$TAGS" | tr ',' '\n'); do
+              echo "| **Image** | \`${TAG}\` |"
+            done
+
+            if [ "$TRIVY_ENABLED" = "true" ] && [ -f trivy-results.txt ]; then
+              echo ""
+              echo "### Trivy Scan"
+              echo '```'
+              cat trivy-results.txt
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

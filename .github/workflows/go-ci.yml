@@ -1,0 +1,155 @@
+name: Go CI
+
+on:
+  workflow_call:
+    inputs:
+      go-version-file:
+        description: Path to go.mod for version detection
+        type: string
+        default: go.mod
+      test-timeout:
+        description: Timeout for go test
+        type: string
+        default: 5m
+      timeout-minutes:
+        description: Total workflow timeout
+        type: number
+        default: 30
+      gosec-excludes:
+        description: Comma-separated gosec rule IDs to exclude (e.g. G304,G107)
+        type: string
+        default: ""
+      golangci-lint-version:
+        description: golangci-lint version
+        type: string
+        default: v2.1
+      runs-on:
+        description: GitHub runner label
+        type: string
+        default: ubuntu-24.04
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Go CI
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    concurrency:
+      group: go-ci-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@v2
+        if: runner.environment == 'github-hosted'
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ inputs.go-version-file }}
+          cache: true
+
+      - name: Verify dependencies
+        run: go mod verify
+
+      - name: Build
+        run: go build -v ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: ${{ inputs.golangci-lint-version }}
+
+      - name: Test
+        id: test
+        uses: robherley/go-test-action@v0
+        with:
+          testArguments: -race -count=1 -timeout ${{ inputs.test-timeout }} ./...
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+
+      - name: govulncheck
+        id: vulncheck
+        run: |
+          set +e
+          OUTPUT=$(govulncheck ./... 2>&1)
+          EXIT=$?
+          echo "$OUTPUT"
+          set -e
+
+          VULNS=$(echo "$OUTPUT" | grep -c 'Vulnerability #' || echo 0)
+          echo "count=${VULNS}" >> "$GITHUB_OUTPUT"
+
+          if [ "$EXIT" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.4
+
+      - name: gosec
+        id: gosec
+        run: |
+          EXCLUDES="${{ inputs.gosec-excludes }}"
+          ARGS=""
+          if [ -n "$EXCLUDES" ]; then
+            ARGS="-exclude=$EXCLUDES"
+          fi
+
+          set +e
+          gosec $ARGS -fmt json -out gosec.json ./... 2>&1
+          EXIT=$?
+          set -e
+
+          ISSUES=0
+          if [ -f gosec.json ]; then
+            ISSUES=$(jq '.Issues | length' gosec.json 2>/dev/null || echo 0)
+          fi
+          echo "issues=${ISSUES}" >> "$GITHUB_OUTPUT"
+
+          if [ "$EXIT" -ne 0 ] && [ "$ISSUES" -gt 0 ]; then
+            exit 1
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Go CI Results"
+            echo ""
+            echo "| Check | Result |"
+            echo "|-------|--------|"
+            echo "| Build | :white_check_mark: |"
+            echo "| Vet | :white_check_mark: |"
+            echo "| Lint | :white_check_mark: |"
+            echo "| Tests | :white_check_mark: |"
+
+            VULNS="${{ steps.vulncheck.outputs.count }}"
+            if [ "${VULNS:-0}" -gt 0 ]; then
+              echo "| govulncheck | :x: ${VULNS} vulnerabilities |"
+            else
+              echo "| govulncheck | :white_check_mark: |"
+            fi
+
+            ISSUES="${{ steps.gosec.outputs.issues }}"
+            if [ "${ISSUES:-0}" -gt 0 ]; then
+              echo "| gosec | :x: ${ISSUES} issues |"
+            else
+              echo "| gosec | :white_check_mark: |"
+            fi
+
+            EXCLUDES="${{ inputs.gosec-excludes }}"
+            if [ -n "$EXCLUDES" ]; then
+              echo ""
+              echo "*gosec excludes: \`${EXCLUDES}\`*"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
