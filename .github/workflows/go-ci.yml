@@ -35,6 +35,10 @@ on:
         description: Enable -race flag on tests (disable to speed up CI)
         type: boolean
         default: true
+      concurrency-suffix:
+        description: Suffix for concurrency group (use when calling this workflow multiple times)
+        type: string
+        default: ""
       runs-on:
         description: GitHub runner label
         type: string
@@ -52,7 +56,7 @@ jobs:
       name: ${{ inputs.environment || null }}
       url: ${{ inputs.environment-url || null }}
     concurrency:
-      group: go-ci-${{ github.workflow }}-${{ github.ref }}
+      group: go-ci-${{ github.workflow }}-${{ github.ref }}${{ inputs.concurrency-suffix && format('-{0}', inputs.concurrency-suffix) || '' }}
       cancel-in-progress: true
 
     steps:
