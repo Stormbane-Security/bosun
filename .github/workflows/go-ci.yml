@@ -31,6 +31,10 @@ on:
         description: GitHub deployment environment URL
         type: string
         default: ""
+      test-race:
+        description: Enable -race flag on tests (disable to speed up CI)
+        type: boolean
+        default: true
       runs-on:
         description: GitHub runner label
         type: string
@@ -74,7 +78,7 @@ jobs:
       - name: Test
         uses: robherley/go-test-action@42a1975c97156330b5126c2f35ef0fb78c4c7154 # v0.7.1
         with:
-          testArguments: -race -failfast -count=1 -timeout ${{ inputs.test-timeout }} ./...
+          testArguments: ${{ inputs.test-race && '-race' || '' }} -failfast -count=1 -timeout ${{ inputs.test-timeout }} ./...
           omit: untested successful
 
       - name: Cache security tools
