@@ -75,6 +75,7 @@ jobs:
         uses: robherley/go-test-action@42a1975c97156330b5126c2f35ef0fb78c4c7154 # v0.7.1
         with:
           testArguments: -race -count=1 -timeout ${{ inputs.test-timeout }} ./...
+          omit: untested successful
 
       - name: Cache security tools
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
