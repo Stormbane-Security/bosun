@@ -48,42 +48,66 @@ permissions:
   contents: read
 
 jobs:
-  ci:
-    name: Go CI
+  # ── Fast gate: lint catches obvious errors in ~30s ────────────────────
+  lint:
+    name: Lint
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 10
+    concurrency:
+      group: go-ci-lint-${{ github.workflow }}-${{ github.ref }}${{ inputs.concurrency-suffix && format('-{0}', inputs.concurrency-suffix) || '' }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: ${{ inputs.go-version-file }}
+          cache: true
+      - name: Verify dependencies
+        run: go mod verify
+      - name: Lint
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        with:
+          version: ${{ inputs.golangci-lint-version }}
+
+  # ── Build + test: runs in parallel with lint ──────────────────────────
+  build-test:
+    name: Build & Test
     runs-on: ${{ inputs.runs-on }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     environment:
       name: ${{ inputs.environment || null }}
       url: ${{ inputs.environment-url || null }}
     concurrency:
-      group: go-ci-${{ github.workflow }}-${{ github.ref }}${{ inputs.concurrency-suffix && format('-{0}', inputs.concurrency-suffix) || '' }}
+      group: go-ci-test-${{ github.workflow }}-${{ github.ref }}${{ inputs.concurrency-suffix && format('-{0}', inputs.concurrency-suffix) || '' }}
       cancel-in-progress: true
-
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
       - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: ${{ inputs.go-version-file }}
           cache: true
-
-      - name: Verify dependencies
-        run: go mod verify
-
-      # golangci-lint includes go vet — no separate vet step needed.
-      - name: Lint
-        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
-        with:
-          version: ${{ inputs.golangci-lint-version }}
-
       - name: Build
         run: go build -v ./...
-
       - name: Test
         uses: robherley/go-test-action@42a1975c97156330b5126c2f35ef0fb78c4c7154 # v0.7.1
         with:
           testArguments: ${{ inputs.test-race && '-race' || '' }} -failfast -count=1 -timeout ${{ inputs.test-timeout }} ./...
           omit: untested successful
+
+  # ── Security: govulncheck + gosec in parallel with lint + test ────────
+  security:
+    name: Security
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    concurrency:
+      group: go-ci-sec-${{ github.workflow }}-${{ github.ref }}${{ inputs.concurrency-suffix && format('-{0}', inputs.concurrency-suffix) || '' }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: ${{ inputs.go-version-file }}
+          cache: true
 
       - name: Cache security tools
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -142,31 +166,29 @@ jobs:
             exit 1
           fi
 
+  # ── Summary: aggregates results from all parallel jobs ────────────────
+  summary:
+    name: CI Summary
+    needs: [lint, build-test, security]
+    if: always()
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 5
+    steps:
       - name: Summary
-        if: always()
         run: |
           {
             echo "## Go CI Results"
             echo ""
             echo "| Check | Result |"
             echo "|-------|--------|"
-            echo "| Lint | :white_check_mark: |"
-            echo "| Build | :white_check_mark: |"
-            echo "| Tests | :white_check_mark: |"
 
-            VULNS="${{ steps.vulncheck.outputs.count }}"
-            if [ "${VULNS:-0}" -gt 0 ]; then
-              echo "| govulncheck | :x: ${VULNS} vulnerabilities |"
-            else
-              echo "| govulncheck | :white_check_mark: |"
-            fi
+            lint="${{ needs.lint.result }}"
+            test="${{ needs.build-test.result }}"
+            sec="${{ needs.security.result }}"
 
-            ISSUES="${{ steps.gosec.outputs.issues }}"
-            if [ "${ISSUES:-0}" -gt 0 ]; then
-              echo "| gosec | :x: ${ISSUES} issues |"
-            else
-              echo "| gosec | :white_check_mark: |"
-            fi
+            [ "$lint" = "success" ] && echo "| Lint | :white_check_mark: |" || echo "| Lint | :x: |"
+            [ "$test" = "success" ] && echo "| Build & Test | :white_check_mark: |" || echo "| Build & Test | :x: |"
+            [ "$sec" = "success" ] && echo "| Security (govulncheck + gosec) | :white_check_mark: |" || echo "| Security | :x: |"
 
             EXCLUDES="${{ inputs.gosec-excludes }}"
             if [ -n "$EXCLUDES" ]; then
@@ -174,3 +196,7 @@ jobs:
               echo "*gosec excludes: \`${EXCLUDES}\`*"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if any check failed
+        if: needs.lint.result == 'failure' || needs.build-test.result == 'failure' || needs.security.result == 'failure'
+        run: exit 1
